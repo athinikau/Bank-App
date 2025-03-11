@@ -58,7 +58,7 @@ export default function LoginPage() {
           <div className="flex justify-center mb-4">
             <Shield className="h-12 w-12 text-capitec-red" />
           </div>
-          <CardTitle className="text-2xl text-center text-capitec-blue">Capitec Bank</CardTitle>
+          <CardTitle className="text-2xl text-center text-capitec-blue">MoneyMate</CardTitle>
           <CardDescription className="text-center">Enter your credentials to access your account</CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
