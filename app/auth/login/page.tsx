@@ -2,16 +2,22 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Eye, EyeOff, Fingerprint, Shield } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { login, initializeStorage } from "@/lib/auth"
+import {
+  login,
+  initializeStorage,
+  isBiometricAvailable,
+  authenticateWithBiometric,
+  isAnyUserBiometricEnrolled,
+} from "@/lib/auth"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function LoginPage() {
@@ -20,12 +26,30 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [biometricLoading, setBiometricLoading] = useState(false)
+  const [biometricAvailable, setBiometricAvailable] = useState(false)
   const router = useRouter()
 
   // Initialize demo data
-  if (typeof window !== "undefined") {
-    initializeStorage()
-  }
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      initializeStorage()
+
+      // Check if biometric authentication is available and enrolled
+      const checkBiometricAvailability = async () => {
+        try {
+          const available = await isBiometricAvailable()
+          const anyUserEnrolled = isAnyUserBiometricEnrolled()
+          setBiometricAvailable(available && anyUserEnrolled)
+        } catch (error) {
+          console.error("Error checking biometric availability:", error)
+          setBiometricAvailable(false)
+        }
+      }
+
+      checkBiometricAvailability()
+    }
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -51,6 +75,26 @@ export default function LoginPage() {
     }
   }
 
+  const handleBiometricLogin = async () => {
+    setError("")
+    setBiometricLoading(true)
+
+    try {
+      const user = await authenticateWithBiometric()
+
+      if (user) {
+        router.push("/")
+      } else {
+        setError("Biometric authentication was canceled")
+      }
+    } catch (err: any) {
+      setError(err.message || "Biometric authentication failed")
+      console.error(err)
+    } finally {
+      setBiometricLoading(false)
+    }
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
       <Card className="w-full max-w-md rounded-xl">
@@ -58,7 +102,7 @@ export default function LoginPage() {
           <div className="flex justify-center mb-4">
             <Shield className="h-12 w-12 text-capitec-red" />
           </div>
-          <CardTitle className="text-2xl text-center text-capitec-blue">MoneyMate</CardTitle>
+          <CardTitle className="text-2xl text-center text-capitec-blue">Capitec Bank</CardTitle>
           <CardDescription className="text-center">Enter your credentials to access your account</CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
@@ -77,7 +121,7 @@ export default function LoginPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 className="border-capitec-blue/30 focus-visible:ring-capitec-red"
-                disabled={loading}
+                disabled={loading || biometricLoading}
               />
             </div>
             <div className="space-y-2">
@@ -91,7 +135,7 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   className="border-capitec-blue/30 focus-visible:ring-capitec-red"
-                  disabled={loading}
+                  disabled={loading || biometricLoading}
                 />
                 <Button
                   type="button"
@@ -99,7 +143,7 @@ export default function LoginPage() {
                   size="icon"
                   className="absolute right-0 top-0 h-full px-3"
                   onClick={() => setShowPassword(!showPassword)}
-                  disabled={loading}
+                  disabled={loading || biometricLoading}
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4 text-muted-foreground" />
@@ -110,20 +154,36 @@ export default function LoginPage() {
                 </Button>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full border-capitec-blue/30 text-capitec-blue hover:bg-capitec-blue/10"
-                disabled={loading}
-              >
-                <Fingerprint className="mr-2 h-4 w-4" />
-                Biometric Login
-              </Button>
-            </div>
+            {biometricAvailable && (
+              <div className="flex items-center space-x-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-capitec-blue/30 text-capitec-blue hover:bg-capitec-blue/10"
+                  onClick={handleBiometricLogin}
+                  disabled={loading || biometricLoading}
+                >
+                  {biometricLoading ? (
+                    <>
+                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-capitec-blue border-t-transparent"></div>
+                      Verifying...
+                    </>
+                  ) : (
+                    <>
+                      <Fingerprint className="mr-2 h-4 w-4" />
+                      Biometric Login
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full bg-capitec-red hover:bg-capitec-red/90" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full bg-capitec-red hover:bg-capitec-red/90"
+              disabled={loading || biometricLoading}
+            >
               {loading ? (
                 <>
                   <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>

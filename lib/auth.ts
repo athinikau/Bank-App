@@ -165,14 +165,141 @@ export const initializeStorage = () => {
   if (!localStorage.getItem("beneficiaries")) {
     localStorage.setItem("beneficiaries", JSON.stringify(initialBeneficiaries))
   }
+
+  // Initialize biometric enrollment for demo purposes
+  // This will make biometric authentication active by default for Sarah
+  if (typeof window !== "undefined") {
+    localStorage.setItem("biometric_enrolled_1", "true")
+    localStorage.setItem("biometric_username", "sarah")
+  }
 }
 
 // Auth functions
-export const login = (username: string, password: string): User | null => {
+// Check if biometric authentication is available on the device
+export const isBiometricAvailable = async (): Promise<boolean> => {
+  if (typeof window === "undefined") return false
+
+  // For demo purposes, always return true to simulate biometric availability
+  return true
+
+  // In a real mobile app, you would use platform-specific APIs
+  // This is a simplified check for web browsers that support WebAuthn
+  /*
+if (window.PublicKeyCredential) {
+  try {
+    // Check if platform authenticator is available
+    return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+  } catch (error) {
+    console.error("Error checking biometric availability:", error)
+    return false
+  }
+}
+return false
+*/
+}
+
+// Store biometric enrollment status for a user
+export const enrollBiometric = (userId: string): void => {
+  if (typeof window === "undefined") return
+
+  try {
+    // In a real app, you would register the biometric credential with the server
+    // For our demo, we'll just store a flag in localStorage
+    localStorage.setItem(`biometric_enrolled_${userId}`, "true")
+
+    // Also store the username for biometric login
+    const users = JSON.parse(localStorage.getItem("users") || "[]")
+    const user = users.find((u: any) => u.id === userId)
+    if (user) {
+      localStorage.setItem("biometric_username", user.username)
+    }
+  } catch (error) {
+    console.error("Error enrolling biometric:", error)
+  }
+}
+
+// Check if a user has enrolled biometric authentication
+export const isBiometricEnrolled = (userId: string): boolean => {
+  if (typeof window === "undefined") return false
+
+  try {
+    return localStorage.getItem(`biometric_enrolled_${userId}`) === "true"
+  } catch (error) {
+    console.error("Error checking biometric enrollment:", error)
+    return false
+  }
+}
+
+// Add this function to check if any user has enrolled biometrics
+export const isAnyUserBiometricEnrolled = (): boolean => {
+  if (typeof window === "undefined") return false
+
+  try {
+    // Check if biometric_username exists in localStorage
+    return !!localStorage.getItem("biometric_username")
+  } catch (error) {
+    console.error("Error checking biometric enrollment:", error)
+    return false
+  }
+}
+
+// Perform biometric authentication
+export const authenticateWithBiometric = async (): Promise<User | null> => {
+  if (typeof window === "undefined") return null
+
+  try {
+    // Check if biometric is enrolled
+    const biometricUsername = localStorage.getItem("biometric_username")
+    if (!biometricUsername) {
+      throw new Error("No biometric enrollment found. Please enroll biometrics in your profile settings first.")
+    }
+
+    // Simulate biometric verification prompt
+    const isAuthenticated = await simulateBiometricPrompt()
+
+    if (isAuthenticated) {
+      // If authenticated, log in the user
+      return login(biometricUsername, "", true) // The true flag indicates biometric login
+    }
+
+    return null
+  } catch (error) {
+    console.error("Biometric authentication error:", error)
+    throw error // Re-throw to allow handling in the UI
+  }
+}
+
+// Simulate a biometric prompt (in a real app, this would be handled by the platform)
+const simulateBiometricPrompt = (): Promise<boolean> => {
+  return new Promise((resolve) => {
+    // In a real app, this would show the native biometric prompt
+    // For our demo, we'll use a confirm dialog
+    const confirmed = window.confirm(
+      "Simulate Biometric Authentication\n\nPlace your finger on the sensor or look at the camera",
+    )
+
+    // Simulate a slight delay for realism
+    setTimeout(() => {
+      resolve(confirmed)
+    }, 1000)
+  })
+}
+
+// Update the login function to support biometric authentication
+export const login = (username: string, password: string, isBiometric = false): User | null => {
   if (typeof window === "undefined") return null
 
   const users = JSON.parse(localStorage.getItem("users") || "[]") as User[]
-  const user = users.find((u) => u.username === username && u.password === password)
+
+  let user
+
+  if (isBiometric) {
+    // For biometric login, we only need to check the username
+    user = users.find((u) => u.username === username)
+  } else {
+    // For regular login, check both username and password
+    user = users.find((u) => u.username === username && u.password === password)
+  }
 
   if (user) {
     // Store current user in session storage (cleared when browser is closed)
@@ -183,9 +310,17 @@ export const login = (username: string, password: string): User | null => {
   return null
 }
 
-export const logout = () => {
+// Enhanced logout function with optional callback
+export const logout = (callback?: () => void): void => {
   if (typeof window === "undefined") return
+
+  // Clear user session
   sessionStorage.removeItem("currentUser")
+
+  // Execute callback if provided
+  if (callback) {
+    callback()
+  }
 }
 
 export const getCurrentUser = (): User | null => {

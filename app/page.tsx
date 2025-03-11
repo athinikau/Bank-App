@@ -8,15 +8,26 @@ import { Shield, CreditCard, BarChart3, Send, Clock, Bell, Menu, LogOut, User } 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { getCurrentUser, getUserAccounts, getAccountTransactions, logout, initializeStorage } from "@/lib/auth"
-import type { Account, Transaction, User, UpcomingPayment } from "@/types"
+import {
+  getCurrentUser,
+  getUserAccounts,
+  getAccountTransactions,
+  logout,
+  initializeStorage,
+  isBiometricAvailable,
+  isBiometricEnrolled,
+} from "@/lib/auth"
+import type { Account, Transaction, User as UserType, UpcomingPayment } from "@/types"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export default function BankingApp() {
   const router = useRouter()
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<UserType | null>(null)
   const [accounts, setAccounts] = useState<Account[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
+  const [biometricAvailable, setBiometricAvailable] = useState(false)
+  const [biometricEnrolled, setBiometricEnrolled] = useState(false)
 
   useEffect(() => {
     // Initialize demo data
@@ -41,12 +52,29 @@ export default function BankingApp() {
       setTransactions(accountTransactions)
     }
 
+    // Check biometric availability and enrollment
+    const checkBiometric = async () => {
+      try {
+        const available = await isBiometricAvailable()
+        setBiometricAvailable(available)
+
+        if (available && currentUser) {
+          const enrolled = isBiometricEnrolled(currentUser.id)
+          setBiometricEnrolled(enrolled)
+        }
+      } catch (error) {
+        console.error("Error checking biometric:", error)
+      }
+    }
+
+    checkBiometric()
     setLoading(false)
   }, [router])
 
   const handleLogout = () => {
-    logout()
-    router.push("/auth/login")
+    logout(() => {
+      router.push("/auth/login")
+    })
   }
 
   if (loading) {
@@ -78,13 +106,29 @@ export default function BankingApp() {
             </Button>
             <Button variant="ghost" size="icon" asChild className="rounded-full">
               <Link href="/profile">
-                <User className="h-5 w-5" />
+                {user?.profileImage ? (
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={user.profileImage} alt={user.firstName} />
+                    <AvatarFallback className="bg-capitec-red text-white">
+                      {user.firstName[0]}
+                      {user.lastName[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                ) : (
+                  <User className="h-5 w-5" />
+                )}
                 <span className="sr-only">Profile</span>
               </Link>
             </Button>
-            <Button variant="ghost" size="icon" className="rounded-full" onClick={handleLogout}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full text-red-600"
+              onClick={handleLogout}
+              aria-label="Sign Out"
+            >
               <LogOut className="h-5 w-5" />
-              <span className="sr-only">Logout</span>
+              <span className="sr-only">Sign Out</span>
             </Button>
           </div>
         </div>
